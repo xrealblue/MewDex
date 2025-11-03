@@ -94,9 +94,9 @@ export default function SwapInterface() {
   }
 
   return (
-    <>
-   
-        
+    <div className="w-full max-w-md p-4 bg-white rounded-lg shadow-md">
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <input
             type="number"
             value={amountIn}
@@ -115,21 +115,29 @@ export default function SwapInterface() {
                </option>
             ))}
           </select>
-          
+        </div>
         
-      
-
-      
-        <button
-          onClick={() => {
-            const temp = tokenIn;
-            setTokenIn(tokenOut);
-            setTokenOut(temp);
-          }}
-          className="text-blue-500 hover:text-blue-700"
-        />
+        <div className="flex justify-center my-2">
+          <button
+            onClick={() => {
+              const temp = tokenIn;
+              setTokenIn(tokenOut);
+              setTokenOut(temp);
+            }}
+            className="p-1 bg-gray-100 rounded-full hover:bg-gray-200"
+          >
+            ↓↑
+          </button>
+        </div>
         
-          
+        <div className="flex items-center gap-2 mb-4">
+          <input
+            type="text"
+            value={amountOut}
+            readOnly
+            placeholder="0.0"
+            className="flex-1 p-2 border rounded bg-gray-50"
+          />
           <select
             value={tokenOut}
             onChange={(e) => setTokenOut(e.target.value)}
@@ -141,14 +149,16 @@ export default function SwapInterface() {
               </option>
             ))}
           </select>
+        </div>
+      </div>
 
-          
-        
-      
-
-      
+      <button
+        onClick={handleSwap}
+        disabled={isLoading || !amountIn || parseFloat(amountIn) <= 0}
+        className="w-full p-2 text-white bg-blue-500 rounded hover:bg-blue-600 disabled:bg-blue-300 disabled:cursor-not-allowed"
+      >
         {isLoading ? 'Swapping...' : 'Swap'}
-      </>
-    
+      </button>
+    </div>
   );
 }
