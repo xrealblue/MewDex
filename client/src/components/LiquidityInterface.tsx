@@ -11,7 +11,7 @@ export default function LiquidityInterface() {
   const { writeContract } = useWriteContract();
   
   const [tokenA, setTokenA] = useState(TOKENS.WETH.address);
-  const [tokenB, setTokenB] = useState(TOKENS.USDC.address);
+  const [tokenB, setTokenB] = useState(TOKENS.MEW.address);
   const [amountA, setAmountA] = useState('');
   const [amountB, setAmountB] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -97,11 +97,9 @@ export default function LiquidityInterface() {
             className="p-2 border rounded"
           >
             {Object.entries(TOKENS).map(([key, token]) => (
-              <option key={key} value={token.symbol} >
-              
+              <option key={key} value={token.address}>
                 {token.symbol}
               </option>
-              
             ))}
           </select>
         
@@ -123,7 +121,7 @@ export default function LiquidityInterface() {
             className="p-2 border rounded"
           >
             {Object.entries(TOKENS).map(([key, token]) => (
-              <option key={key} value={token.address} >
+              <option key={key} value={token.address}>
                 {token.symbol}
               </option>
             ))}

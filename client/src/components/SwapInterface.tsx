@@ -8,20 +8,19 @@ import { ArrowDownIcon } from '@heroicons/react/24/outline';
 import web3Provider from '@/lib/web3Provider';
 
 const tokens = [
-  { symbol: 'ETH', address: TOKENS.WETH, decimals: 18 },
-  { symbol: 'USDC', address: TOKENS.USDC, decimals: 6 },
-  { symbol: 'DAI', address: TOKENS.DAI, decimals: 18 },
-  { symbol: 'USDT', address: TOKENS.USDT, decimals: 6 },
+  { symbol: 'WETH', address: TOKENS.WETH, decimals: 18 },
+  { symbol: 'MEW', address: TOKENS.MEW, decimals: 18 },
+  { symbol: 'CAT', address: TOKENS.CAT, decimals: 18 },
 ];
 
 export default function SwapInterface() {
   const [address, setAddress] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [inputToken, setInputToken] = useState(tokens[0]);
-  const [outputToken, setOutputToken] = useState(tokens[1]);
+  const [inputToken, setInputToken] = useState(tokens[0]); // WETH
+  const [outputToken, setOutputToken] = useState(tokens[1]); // MEW
   const [inputAmount, setInputAmount] = useState('');
   const [outputAmount, setOutputAmount] = useState('');
-  const [slippage, setSlippage] = useState(0.5); // 0.5% default slippage
+  const [slippage, setSlippage] = useState(0.5);
   const [isApproving, setIsApproving] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +48,7 @@ export default function SwapInterface() {
     
     try {
       // Fetch input token balance
-      if (inputToken.address === TOKENS.WETH) {
+      if (inputToken.symbol === 'WETH') {
         const ethBalance = await web3Provider.provider?.getBalance(address);
         if (ethBalance) {
           setInputBalance(formatUnits(ethBalance, 18));
@@ -61,7 +60,7 @@ export default function SwapInterface() {
       }
       
       // Fetch output token balance
-      if (outputToken.address === TOKENS.WETH) {
+      if (outputToken.symbol === 'WETH') {
         const ethBalance = await web3Provider.provider?.getBalance(address);
         if (ethBalance) {
           setOutputBalance(formatUnits(ethBalance, 18));
@@ -78,7 +77,7 @@ export default function SwapInterface() {
 
   // Fetch token allowance
   const fetchAllowance = async () => {
-    if (!isConnected || !address || inputToken.address === TOKENS.WETH) return;         
+    if (!isConnected || !address || inputToken.symbol === 'WETH') return;         
     
     try {
       const tokenContract = await web3Provider.getContract(inputToken.address.address, ERC20_ABI);
@@ -125,10 +124,18 @@ export default function SwapInterface() {
       setOutputAmount(formattedOutput);
     } catch (error) {
       console.error('Error getting quote:', error);
-      // Fallback to mock price if router call fails
-      const mockPrice = inputToken.symbol === 'ETH' ? 1800 : 1 / 1800;
-      const calculatedOutput = parseFloat(inputAmount) * mockPrice;
-      setOutputAmount(calculatedOutput.toFixed(outputToken.decimals));
+      
+      // Check if it's a "no liquidity pool" error
+      if (error.message?.includes('INSUFFICIENT_LIQUIDITY') || 
+          error.message?.includes('INVALID_PATH') ||
+          error.message?.includes('revert')) {
+        setError('No liquidity pool available for this token pair. You may need to create one first.');
+        setOutputAmount('0');
+      } else {
+        // For other errors, show a simple 1:1 ratio as fallback
+        setOutputAmount(inputAmount);
+        setError('');
+      }
     }
   };
 
@@ -173,7 +180,7 @@ export default function SwapInterface() {
       const minOutputAmount = toBigInt(parseUnits(outputAmount, outputToken.decimals)) * (toBigInt(1000 - Math.floor(slippage * 10)))/(toBigInt(1000));
 
       // Check if approval is needed for ERC20 tokens (not needed for ETH)
-      if (inputToken.address !== TOKENS.WETH) {             
+      if (inputToken.symbol !== 'WETH') {             
         if (allowance < amountIn) {
           setIsApproving(true);
           
@@ -202,8 +209,8 @@ export default function SwapInterface() {
       );
 
       let tx;
-      if (inputToken.address === TOKENS.WETH) {
-        // If input is ETH, use swapExactETHForTokens
+      if (inputToken.symbol === 'WETH') {
+        // If input is WETH, use swapExactETHForTokens
         tx = await routerContract.swapExactETHForTokens(
           minOutputAmount,
           path,
@@ -211,8 +218,8 @@ export default function SwapInterface() {
           deadline,
           { value: amountIn }
         );
-      } else if (outputToken.address === TOKENS.WETH) {
-        // If output is ETH, use swapExactTokensForETH
+      } else if (outputToken.symbol === 'WETH') {
+        // If output is WETH, use swapExactTokensForETH
         tx = await routerContract.swapExactTokensForETH(
           amountIn,
           minOutputAmount,
@@ -333,26 +340,6 @@ export default function SwapInterface() {
               </option>
             ))}
           </select>
-        </div>
-      </div>
-
-      {/* Slippage setting */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Slippage Tolerance</label>
-        <div className="flex space-x-2">
-          {[0.1, 0.5, 1.0, 2.0].map((value) => (
-            <button
-              key={value}
-              onClick={() => setSlippage(value)}
-              className={`px-3 py-1 text-sm rounded-md ${
-                slippage === value
-                  ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
-                  : 'bg-gray-100 text-gray-700 border border-gray-200'
-              }`}
-            >
-              {value}%
-            </button>
-          ))}
         </div>
       </div>
 
