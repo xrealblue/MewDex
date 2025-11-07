@@ -9,6 +9,4 @@ optimizer_runs = 200
 solc = "0.8.20"
 
 # Solidity version overrides for dependencies
-[profile.default.solc_version_overrides]
-"lib/v2-core/**/*.sol" = "0.5.16"
-"lib/v2-periphery/**/*.sol" = "0.6.6"
+# Note: These are for Uniswap V2 contracts which use older Solidity versions
