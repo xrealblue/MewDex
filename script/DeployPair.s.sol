@@ -9,7 +9,7 @@ contract DeployPair is Script {
     address constant CAT_TOKEN = 0x16EB0B40deb683Da77D68f86B01a3fd0A189Cb5F;
 
     address constant UNISWAP_V2_FACTORY =
-        0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+        0x7E0987E5b3a30e3f2828572Bb659A548460a3003;
 
     function run() external {
         vm.startBroadcast();

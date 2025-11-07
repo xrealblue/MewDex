@@ -11,19 +11,14 @@ export const TOKENS = {
     symbol: 'WETH',
     decimals: 18
   },
-  USDC: {
-    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-    symbol: 'USDC',
-    decimals: 6
+  MEW: {
+    address: '0x859f87DF3ea4DE9573A52Fa0695B72383a261213',
+    symbol: 'MEW',
+    decimals: 18 
   },
-  DAI: {
-    address: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
-    symbol: 'DAI',
+  CAT: {
+    address: '0x16EB0B40deb683Da77D68f86B01a3fd0A189Cb5F',
+    symbol: 'CAT',
     decimals: 18
   },
-  USDT: {
-    address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
-    symbol: 'USDT',
-    decimals: 6
-  }
 };
