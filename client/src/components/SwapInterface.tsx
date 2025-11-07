@@ -1,370 +1,648 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { parseUnits, formatUnits, toBigInt } from 'ethers';
-import { UNISWAP_V2_MAINNET_ROUTER02_ADDRESS, TOKENS } from '@/constants/addresses';
-import { UNISWAP_V2_ROUTER_ABI, ERC20_ABI } from '@/lib/contracts';
-import { ArrowDownIcon } from '@heroicons/react/24/outline';
-import web3Provider from '@/lib/web3Provider';
+import React, { useState, useEffect } from 'react';
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { parseEther, formatEther, Address } from 'viem';
+import { sepolia } from 'wagmi/chains';
 
-const tokens = [
-  { symbol: 'WETH', address: TOKENS.WETH, decimals: 18 },
-  { symbol: 'MEW', address: TOKENS.MEW, decimals: 18 },
-  { symbol: 'CAT', address: TOKENS.CAT, decimals: 18 },
+// Contract addresses
+const ROUTER_ADDRESS = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24';
+const FACTORY_ADDRESS = '0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6';
+
+const TOKENS = {
+  MEW: {
+    address: '0x859f87DF3ea4DE9573A52Fa0695B72383a261213',
+    symbol: 'MEW',
+    decimals: 18
+  },
+  CAT: {
+    address: '0x16EB0B40deb683Da77D68f86B01a3fd0A189Cb5F',
+    symbol: 'CAT',
+    decimals: 18
+  },
+};
+
+const PAIR_ADDRESS = '0x8384e73328b1223cEa00C6e219ED75192919e4E0';
+
+// ABIs
+const ERC20_ABI = [
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+    name: 'approve',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }],
+    name: 'allowance',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ];
 
-export default function SwapInterface() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [inputToken, setInputToken] = useState(tokens[0]); // WETH
-  const [outputToken, setOutputToken] = useState(tokens[1]); // MEW
-  const [inputAmount, setInputAmount] = useState('');
-  const [outputAmount, setOutputAmount] = useState('');
-  const [slippage, setSlippage] = useState(0.5);
-  const [isApproving, setIsApproving] = useState(false);
-  const [isSwapping, setIsSwapping] = useState(false);
-  const [error, setError] = useState('');
-  const [inputBalance, setInputBalance] = useState<string>('0');
-  const [outputBalance, setOutputBalance] = useState<string>('0');
-  const [allowance, setAllowance] = useState<bigint>(BigInt(0));
+const ROUTER_ABI = [
+  {
+    inputs: [
+      { name: 'amountIn', type: 'uint256' },
+      { name: 'amountOutMin', type: 'uint256' },
+      { name: 'path', type: 'address[]' },
+      { name: 'to', type: 'address' },
+      { name: 'deadline', type: 'uint256' }
+    ],
+    name: 'swapExactTokensForTokens',
+    outputs: [{ name: 'amounts', type: 'uint256[]' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'amountIn', type: 'uint256' },
+      { name: 'path', type: 'address[]' }
+    ],
+    name: 'getAmountsOut',
+    outputs: [{ name: 'amounts', type: 'uint256[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'tokenA', type: 'address' },
+      { name: 'tokenB', type: 'address' },
+      { name: 'amountADesired', type: 'uint256' },
+      { name: 'amountBDesired', type: 'uint256' },
+      { name: 'amountAMin', type: 'uint256' },
+      { name: 'amountBMin', type: 'uint256' },
+      { name: 'to', type: 'address' },
+      { name: 'deadline', type: 'uint256' }
+    ],
+    name: 'addLiquidity',
+    outputs: [
+      { name: 'amountA', type: 'uint256' },
+      { name: 'amountB', type: 'uint256' },
+      { name: 'liquidity', type: 'uint256' }
+    ],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+];
 
-  // Initialize connection state
-  useEffect(() => {
-    const checkConnection = async () => {
-      if (web3Provider.isConnected) {
-        setAddress(web3Provider.address);
-        setIsConnected(true);
-        fetchBalances();
-        fetchAllowance();
-      }
-    };
-    
-    checkConnection();
-  }, []);
+const PAIR_ABI = [
+  {
+    inputs: [],
+    name: 'getReserves',
+    outputs: [
+      { name: 'reserve0', type: 'uint112' },
+      { name: 'reserve1', type: 'uint112' },
+      { name: 'blockTimestampLast', type: 'uint32' }
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'token0',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'token1',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
 
-  // Fetch token balances
-  const fetchBalances = async () => {
-    if (!isConnected || !address) return;
-    
-    try {
-      // Fetch input token balance
-      if (inputToken.symbol === 'WETH') {
-        const ethBalance = await web3Provider.provider?.getBalance(address);
-        if (ethBalance) {
-          setInputBalance(formatUnits(ethBalance, 18));
-        }
-      } else {
-        const tokenContract = await web3Provider.getContract(inputToken.address.address, ERC20_ABI);
-      const balance = await tokenContract.balanceOf(address);
-      setInputBalance(formatUnits(balance, inputToken.decimals));
-      }
-      
-      // Fetch output token balance
-      if (outputToken.symbol === 'WETH') {
-        const ethBalance = await web3Provider.provider?.getBalance(address);
-        if (ethBalance) {
-          setOutputBalance(formatUnits(ethBalance, 18));
-        }
-      } else {
-        const tokenContract = await web3Provider.getContract(outputToken.address.address, ERC20_ABI);
-        const balance = await tokenContract.balanceOf(address);
-        setOutputBalance(formatUnits(balance, outputToken.decimals));
-      }
-    } catch (error) {
-      console.error('Error fetching balances:', error);
-    }
-  };
-
-  // Fetch token allowance
-  const fetchAllowance = async () => {
-    if (!isConnected || !address || inputToken.symbol === 'WETH') return;         
-    
-    try {
-      const tokenContract = await web3Provider.getContract(inputToken.address.address, ERC20_ABI);
-      const currentAllowance = await tokenContract.allowance(address, UNISWAP_V2_MAINNET_ROUTER02_ADDRESS);
-      setAllowance(currentAllowance);
-    } catch (error) {
-      console.error('Error fetching allowance:', error);
-    }
-  };
-
-  // Update balances and allowance when tokens change
-  useEffect(() => {
-    fetchBalances();
-    fetchAllowance();
-  }, [inputToken, outputToken, isConnected, address]);
-
-  // Get quote
-  const getQuote = async () => {
-    if (!inputAmount || parseFloat(inputAmount) === 0) {
-      setOutputAmount('');
-      return;
-    }
-
-    try {
-      if (!web3Provider.isConnected) return;
-      
-      // Get router contract
-      const routerContract = await web3Provider.getContract(
-        UNISWAP_V2_MAINNET_ROUTER02_ADDRESS,
-        UNISWAP_V2_ROUTER_ABI
-      );
-      
-      // Convert input amount to wei
-      const amountIn = parseUnits(inputAmount, inputToken.decimals);
-      
-      // Path is an array of token addresses
-      const path = [inputToken.address.address, outputToken.address.address];
-      
-      // Call getAmountsOut to get the expected output amount
-      const amounts = await routerContract.getAmountsOut(amountIn, path);
-      
-      // Format the output amount
-      const formattedOutput = formatUnits(amounts[1], outputToken.decimals);
-      setOutputAmount(formattedOutput);
-    } catch (error) {
-      console.error('Error getting quote:', error);
-      
-      // Check if it's a "no liquidity pool" error
-      if (error.message?.includes('INSUFFICIENT_LIQUIDITY') || 
-          error.message?.includes('INVALID_PATH') ||
-          error.message?.includes('revert')) {
-        setError('No liquidity pool available for this token pair. You may need to create one first.');
-        setOutputAmount('0');
-      } else {
-        // For other errors, show a simple 1:1 ratio as fallback
-        setOutputAmount(inputAmount);
-        setError('');
-      }
-    }
-  };
-
-  // Update quote when input amount changes
-  useEffect(() => {
-    getQuote();
-  }, [inputAmount, inputToken, outputToken]);
-
-  // Connect wallet
-  const connectWallet = async () => {
-    try {
-      const { address, isConnected } = await web3Provider.connect();
-      setAddress(address);
-      setIsConnected(isConnected);
-      fetchBalances();
-      fetchAllowance();
-    } catch (error) {
-      console.error("Failed to connect wallet:", error);
-      setError('Failed to connect wallet');
-    }
-  };
-
-  // Handle token swap
-  const handleSwap = async () => {
-    if (!isConnected) {
-      await connectWallet();
-      return;
-    }
-
-    if (!inputAmount || parseFloat(inputAmount) === 0) {
-      setError('Please enter an amount');
-      return;
-    }
-
-    try {
-      setError('');
-      
-      // Convert input amount to wei
-      const amountIn = parseUnits(inputAmount, inputToken.decimals);
-      
-      // Calculate minimum output amount based on slippage
-      const minOutputAmount = toBigInt(parseUnits(outputAmount, outputToken.decimals)) * (toBigInt(1000 - Math.floor(slippage * 10)))/(toBigInt(1000));
-
-      // Check if approval is needed for ERC20 tokens (not needed for ETH)
-      if (inputToken.symbol !== 'WETH') {             
-        if (allowance < amountIn) {
-          setIsApproving(true);
-          
-          const tokenContract = await web3Provider.getContract(inputToken.address.address, ERC20_ABI);
-          const approveTx = await tokenContract.approve(UNISWAP_V2_MAINNET_ROUTER02_ADDRESS, amountIn);
-          await approveTx.wait();
-          
-          // Update allowance
-          await fetchAllowance();
-          setIsApproving(false);
-        }
-      }
-
-      // Execute swap
-      setIsSwapping(true);
-      
-      // Path is an array of token addresses
-      const path = [inputToken.address.address, outputToken.address.address];
-      
-      // Deadline is 20 minutes from now
-      const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
-
-      const routerContract = await web3Provider.getContract(
-        UNISWAP_V2_MAINNET_ROUTER02_ADDRESS,
-        UNISWAP_V2_ROUTER_ABI
-      );
-
-      let tx;
-      if (inputToken.symbol === 'WETH') {
-        // If input is WETH, use swapExactETHForTokens
-        tx = await routerContract.swapExactETHForTokens(
-          minOutputAmount,
-          path,
-          address,
-          deadline,
-          { value: amountIn }
-        );
-      } else if (outputToken.symbol === 'WETH') {
-        // If output is WETH, use swapExactTokensForETH
-        tx = await routerContract.swapExactTokensForETH(
-          amountIn,
-          minOutputAmount,
-          path,
-          address,
-          deadline
-        );
-      } else {
-        // Otherwise use swapExactTokensForTokens
-        tx = await routerContract.swapExactTokensForTokens(
-          amountIn,
-          minOutputAmount,
-          path,
-          address,
-          deadline
-        );
-      }
-
-      await tx.wait();
-      
-      // Update balances
-      await fetchBalances();
-      
-      setIsSwapping(false);
-      
-      // Reset input amount
-      setInputAmount('');
-      setOutputAmount('');
-      
-    } catch (error) {
-      console.error('Swap failed:', error);
-      setError('Swap failed. Check console for details.');
-      setIsSwapping(false);
-      setIsApproving(false);
-    }
-  };
-
-  // Swap token positions
-  const swapTokenPositions = () => {
-    setInputToken(outputToken);
-    setOutputToken(inputToken);
-    setInputAmount(outputAmount);
-    setOutputAmount(inputAmount);
-  };
+export default function DEXInterface() {
+  const [activeTab, setActiveTab] = useState<'swap' | 'liquidity'>('swap');
+  const { address, isConnected } = useAccount();
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 w-full max-w-md mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Swap Tokens</h2>
-      
-      {/* Input token */}
-      <div className="mb-4">
-        <div className="flex justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-700">From</label>
-          {isConnected && (
-            <span className="text-sm text-gray-500">
-              Balance: {parseFloat(inputBalance).toFixed(4)} {inputToken.symbol}
-            </span>
-          )}
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+          {/* Tabs */}
+          <div className="flex border-b border-white/20">
+            <button
+              onClick={() => setActiveTab('swap')}
+              className={`flex-1 py-4 text-lg font-semibold transition-all ${
+                activeTab === 'swap'
+                  ? 'bg-white/20 text-white border-b-2 border-blue-400'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Swap
+            </button>
+            <button
+              onClick={() => setActiveTab('liquidity')}
+              className={`flex-1 py-4 text-lg font-semibold transition-all ${
+                activeTab === 'liquidity'
+                  ? 'bg-white/20 text-white border-b-2 border-blue-400'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Add Liquidity
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            {!isConnected ? (
+              <div className="text-center py-12">
+                <p className="text-white/80 text-lg">Please connect your wallet to continue</p>
+              </div>
+            ) : activeTab === 'swap' ? (
+              <SwapInterface />
+            ) : (
+              <LiquidityInterface />
+            )}
+          </div>
         </div>
-        <div className="flex items-center">
+      </div>
+    </div>
+  );
+}
+
+function SwapInterface() {
+  const { address } = useAccount();
+  const [fromToken, setFromToken] = useState<'MEW' | 'CAT'>('MEW');
+  const [toToken, setToToken] = useState<'CAT' | 'MEW'>('CAT');
+  const [fromAmount, setFromAmount] = useState('');
+  const [toAmount, setToAmount] = useState('');
+  const [slippage, setSlippage] = useState('0.5');
+
+  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  // Get balances
+  const { data: fromBalance } = useReadContract({
+    address: TOKENS[fromToken].address as Address,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [address!],
+  });
+
+  const { data: toBalance } = useReadContract({
+    address: TOKENS[toToken].address as Address,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [address!],
+  });
+
+  // Check allowance
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: TOKENS[fromToken].address as Address,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [address!, ROUTER_ADDRESS as Address],
+  });
+
+  // Get expected output amount
+  const { data: amountsOut, isError, isLoading } = useReadContract({
+    address: ROUTER_ADDRESS as Address,
+    abi: ROUTER_ABI,
+    functionName: 'getAmountsOut',
+    args: fromAmount && parseFloat(fromAmount) > 0 ? [parseEther(fromAmount), [TOKENS[fromToken].address, TOKENS[toToken].address]] : undefined,
+    query: {
+      enabled: !!fromAmount && parseFloat(fromAmount) > 0,
+    }
+  });
+
+  useEffect(() => {
+    if (amountsOut && Array.isArray(amountsOut) && amountsOut.length > 1) {
+      const outputAmount = formatEther(amountsOut[1] as bigint);
+      setToAmount(parseFloat(outputAmount).toFixed(6));
+    } else if (!fromAmount || parseFloat(fromAmount) === 0) {
+      setToAmount('');
+    }
+  }, [amountsOut, fromAmount]);
+
+  const handleApprove = async () => {
+    try {
+      writeContract({
+        address: TOKENS[fromToken].address as Address,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [ROUTER_ADDRESS as Address, parseEther('1000000')],
+      });
+    } catch (error) {
+      console.error('Approval failed:', error);
+    }
+  };
+
+  const handleSwap = async () => {
+    if (!fromAmount || !toAmount) return;
+
+    try {
+      const amountIn = parseEther(fromAmount);
+      const amountOutMin = parseEther(toAmount) * BigInt(10000 - Math.floor(parseFloat(slippage) * 100)) / BigInt(10000);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
+
+      writeContract({
+        address: ROUTER_ADDRESS as Address,
+        abi: ROUTER_ABI,
+        functionName: 'swapExactTokensForTokens',
+        args: [
+          amountIn,
+          amountOutMin,
+          [TOKENS[fromToken].address, TOKENS[toToken].address],
+          address!,
+          deadline,
+        ],
+      });
+    } catch (error) {
+      console.error('Swap failed:', error);
+    }
+  };
+
+  const switchTokens = () => {
+    setFromToken(toToken);
+    setToToken(fromToken);
+    setFromAmount('');
+    setToAmount('');
+  };
+
+  const needsApproval = allowance !== undefined && fromAmount && parseEther(fromAmount) > (allowance as bigint);
+
+  useEffect(() => {
+    if (isSuccess) {
+      setFromAmount('');
+      setToAmount('');
+      refetchAllowance();
+    }
+  }, [isSuccess, refetchAllowance]);
+
+  return (
+    <div className="space-y-4">
+      {/* From Token */}
+      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+        <div className="flex justify-between mb-2">
+          <span className="text-white/60 text-sm">From</span>
+          <span className="text-white/60 text-sm">
+            Balance: {fromBalance ? parseFloat(formatEther(fromBalance as bigint)).toFixed(4) : '0'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
           <input
             type="number"
-            value={inputAmount}
-            onChange={(e) => setInputAmount(e.target.value)}
+            value={fromAmount}
+            onChange={(e) => setFromAmount(e.target.value)}
             placeholder="0.0"
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2"
+            className="flex-1 bg-transparent text-white text-2xl outline-none"
           />
           <select
-            value={inputToken.symbol}
-            onChange={(e) => setInputToken(tokens.find(t => t.symbol === e.target.value) || tokens[0])}
-            className="ml-2 block rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+            value={fromToken}
+            onChange={(e) => {
+              const newFrom = e.target.value as 'MEW' | 'CAT';
+              setFromToken(newFrom);
+              setToToken(newFrom === 'MEW' ? 'CAT' : 'MEW');
+            }}
+            className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold cursor-pointer hover:bg-white/20 transition-colors"
           >
-            {tokens.map((token) => (
-              <option key={token.symbol} value={token.symbol}>
-                {token.symbol}
-              </option>
-            ))}
+            <option value="MEW">MEW</option>
+            <option value="CAT">CAT</option>
           </select>
         </div>
       </div>
 
-      {/* Swap direction button */}
-      <div className="flex justify-center my-4">
+      {/* Switch Button */}
+      <div className="flex justify-center">
         <button
-          onClick={swapTokenPositions}
-          className="bg-gray-100 p-2 rounded-full hover:bg-gray-200"
+          onClick={switchTokens}
+          className="bg-white/10 p-3 rounded-xl hover:bg-white/20 transition-all hover:rotate-180 duration-300"
         >
-          <ArrowDownIcon className="h-6 w-6 text-gray-600" />
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+          </svg>
         </button>
       </div>
 
-      {/* Output token */}
-      <div className="mb-6">
+      {/* To Token */}
+      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
         <div className="flex justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-700">To</label>
-          {isConnected && (
-            <span className="text-sm text-gray-500">
-              Balance: {parseFloat(outputBalance).toFixed(4)} {outputToken.symbol}
-            </span>
-          )}
+          <span className="text-white/60 text-sm">To</span>
+          <span className="text-white/60 text-sm">
+            Balance: {toBalance ? parseFloat(formatEther(toBalance as bigint)).toFixed(4) : '0'}
+          </span>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
           <input
             type="number"
-            value={outputAmount}
+            value={toAmount}
             readOnly
             placeholder="0.0"
-            className="block w-full rounded-md border-gray-300 bg-gray-50 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2"
+            className="flex-1 bg-transparent text-white text-2xl outline-none"
           />
-          <select
-            value={outputToken.symbol}
-            onChange={(e) => setOutputToken(tokens.find(t => t.symbol === e.target.value) || tokens[1])}
-            className="ml-2 block rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-          >
-            {tokens.map((token) => (
-              <option key={token.symbol} value={token.symbol}>
-                {token.symbol}
-              </option>
-            ))}
-          </select>
+          <div className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold">
+            {toToken}
+          </div>
         </div>
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-md">
-          {error}
+      {/* Slippage - Simple buttons only */}
+      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+        <div className="flex justify-between items-center">
+          <span className="text-white/80 text-sm">Slippage Tolerance</span>
+          <div className="flex gap-2">
+            {['0.5', '1.0', '3.0'].map((val) => (
+              <button
+                key={val}
+                onClick={() => setSlippage(val)}
+                className={`px-4 py-1 rounded-lg text-sm font-medium ${
+                  slippage === val ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                {val}%
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Swap Button */}
+      {needsApproval ? (
+        <button
+          onClick={handleApprove}
+          disabled={isPending || isConfirming}
+          className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isPending || isConfirming ? 'Approving...' : `Approve ${fromToken}`}
+        </button>
+      ) : (
+        <button
+          onClick={handleSwap}
+          disabled={!fromAmount || !toAmount || isPending || isConfirming}
+          className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isPending || isConfirming ? 'Swapping...' : isSuccess ? 'Swap Successful!' : 'Swap'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function LiquidityInterface() {
+  const { address } = useAccount();
+  const [mewAmount, setMewAmount] = useState('');
+  const [catAmount, setCatAmount] = useState('');
+  const [slippage, setSlippage] = useState('0.5');
+
+  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  // Get balances
+  const { data: mewBalance } = useReadContract({
+    address: TOKENS.MEW.address as Address,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [address!],
+  });
+
+  const { data: catBalance } = useReadContract({
+    address: TOKENS.CAT.address as Address,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [address!],
+  });
+
+  // Check allowances
+  const { data: mewAllowance, refetch: refetchMewAllowance } = useReadContract({
+    address: TOKENS.MEW.address as Address,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [address!, ROUTER_ADDRESS as Address],
+  });
+
+  const { data: catAllowance, refetch: refetchCatAllowance } = useReadContract({
+    address: TOKENS.CAT.address as Address,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [address!, ROUTER_ADDRESS as Address],
+  });
+
+  // Get reserves
+  const { data: reserves } = useReadContract({
+    address: PAIR_ADDRESS as Address,
+    abi: PAIR_ABI,
+    functionName: 'getReserves',
+  });
+
+  const { data: token0 } = useReadContract({
+    address: PAIR_ADDRESS as Address,
+    abi: PAIR_ABI,
+    functionName: 'token0',
+  });
+
+  const handleApproveMew = async () => {
+    writeContract({
+      address: TOKENS.MEW.address as Address,
+      abi: ERC20_ABI,
+      functionName: 'approve',
+      args: [ROUTER_ADDRESS as Address, parseEther('1000000')],
+    });
+  };
+
+  const handleApproveCat = async () => {
+    writeContract({
+      address: TOKENS.CAT.address as Address,
+      abi: ERC20_ABI,
+      functionName: 'approve',
+      args: [ROUTER_ADDRESS as Address, parseEther('1000000')],
+    });
+  };
+
+  const handleAddLiquidity = async () => {
+    if (!mewAmount || !catAmount) return;
+
+    try {
+      const amountMew = parseEther(mewAmount);
+      const amountCat = parseEther(catAmount);
+      const slippageFactor = BigInt(10000 - Math.floor(parseFloat(slippage) * 100));
+      const amountMewMin = (amountMew * slippageFactor) / BigInt(10000);
+      const amountCatMin = (amountCat * slippageFactor) / BigInt(10000);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
+
+      writeContract({
+        address: ROUTER_ADDRESS as Address,
+        abi: ROUTER_ABI,
+        functionName: 'addLiquidity',
+        args: [
+          TOKENS.MEW.address,
+          TOKENS.CAT.address,
+          amountMew,
+          amountCat,
+          amountMewMin,
+          amountCatMin,
+          address!,
+          deadline,
+        ],
+      });
+    } catch (error) {
+      console.error('Add liquidity failed:', error);
+    }
+  };
+
+  const needsMewApproval = mewAllowance !== undefined && mewAmount && parseEther(mewAmount) > (mewAllowance as bigint);
+  const needsCatApproval = catAllowance !== undefined && catAmount && parseEther(catAmount) > (catAllowance as bigint);
+
+  useEffect(() => {
+    if (isSuccess) {
+      setMewAmount('');
+      setCatAmount('');
+      refetchMewAllowance();
+      refetchCatAllowance();
+    }
+  }, [isSuccess, refetchMewAllowance, refetchCatAllowance]);
+
+  // Calculate ratio suggestion
+  useEffect(() => {
+    if (reserves && token0 && mewAmount && Array.isArray(reserves)) {
+      const [reserve0, reserve1] = reserves as [bigint, bigint, number];
+      const isMewToken0 = (token0 as string).toLowerCase() === TOKENS.MEW.address.toLowerCase();
+      const mewReserve = isMewToken0 ? reserve0 : reserve1;
+      const catReserve = isMewToken0 ? reserve1 : reserve0;
+      
+      if (mewReserve > 0n) {
+        const ratio = Number(catReserve) / Number(mewReserve);
+        const suggestedCat = parseFloat(mewAmount) * ratio;
+        if (suggestedCat > 0 && !catAmount) {
+          setCatAmount(suggestedCat.toFixed(6));
+        }
+      }
+    }
+  }, [mewAmount, reserves, token0, catAmount]);
+
+  return (
+    <div className="space-y-4">
+      {reserves && Array.isArray(reserves) && (
+        <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+          <h3 className="text-white font-semibold mb-2">Pool Reserves</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-white/60">MEW:</span>
+              <span className="text-white ml-2">
+                {formatEther(token0 && (token0 as string).toLowerCase() === TOKENS.MEW.address.toLowerCase() 
+                  ? (reserves[0] as bigint) 
+                  : (reserves[1] as bigint)).slice(0, 10)}
+              </span>
+            </div>
+            <div>
+              <span className="text-white/60">CAT:</span>
+              <span className="text-white ml-2">
+                {formatEther(token0 && (token0 as string).toLowerCase() === TOKENS.MEW.address.toLowerCase() 
+                  ? (reserves[1] as bigint) 
+                  : (reserves[0] as bigint)).slice(0, 10)}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Swap button */}
-      <div>
-        <button
-          onClick={handleSwap}
-          disabled={isApproving || isSwapping || (!inputAmount || parseFloat(inputAmount) === 0)}
-          className="w-full bg-indigo-600 text-white py-3 px-4 rounded-md font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
-        >
-          {!isConnected
-            ? 'Connect Wallet'
-            : isApproving
-            ? 'Approving...'
-            : isSwapping
-            ? 'Swapping...'
-            : 'Swap'}
-        </button>
+      {/* MEW Input */}
+      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+        <div className="flex justify-between mb-2">
+          <span className="text-white/60 text-sm">MEW Amount</span>
+          <span className="text-white/60 text-sm">
+            Balance: {mewBalance ? parseFloat(formatEther(mewBalance as bigint)).toFixed(4) : '0'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="number"
+            value={mewAmount}
+            onChange={(e) => setMewAmount(e.target.value)}
+            placeholder="0.0"
+            className="flex-1 bg-transparent text-white text-2xl outline-none"
+          />
+          <div className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold">
+            MEW
+          </div>
+        </div>
+      </div>
+
+      {/* CAT Input */}
+      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+        <div className="flex justify-between mb-2">
+          <span className="text-white/60 text-sm">CAT Amount</span>
+          <span className="text-white/60 text-sm">
+            Balance: {catBalance ? parseFloat(formatEther(catBalance as bigint)).toFixed(4) : '0'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="number"
+            value={catAmount}
+            onChange={(e) => setCatAmount(e.target.value)}
+            placeholder="0.0"
+            className="flex-1 bg-transparent text-white text-2xl outline-none"
+          />
+          <div className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold">
+            CAT
+          </div>
+        </div>
+      </div>
+
+      {/* Slippage - Simple buttons only */}
+      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+        <div className="flex justify-between items-center">
+          <span className="text-white/80 text-sm">Slippage Tolerance</span>
+          <div className="flex gap-2">
+            {['0.5', '1.0', '3.0'].map((val) => (
+              <button
+                key={val}
+                onClick={() => setSlippage(val)}
+                className={`px-4 py-1 rounded-lg text-sm font-medium ${
+                  slippage === val ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                {val}%
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="space-y-2">
+        {needsMewApproval && (
+          <button
+            onClick={handleApproveMew}
+            disabled={isPending || isConfirming}
+            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            {isPending || isConfirming ? 'Approving...' : 'Approve MEW'}
+          </button>
+        )}
+        
+        {needsCatApproval && (
+          <button
+            onClick={handleApproveCat}
+            disabled={isPending || isConfirming}
+            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            {isPending || isConfirming ? 'Approving...' : 'Approve CAT'}
+          </button>
+        )}
+
+        {!needsMewApproval && !needsCatApproval && (
+          <button
+            onClick={handleAddLiquidity}
+            disabled={!mewAmount || !catAmount || isPending || isConfirming}
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isPending || isConfirming ? 'Adding Liquidity...' : isSuccess ? 'Liquidity Added!' : 'Add Liquidity'}
+          </button>
+        )}
       </div>
     </div>
   );

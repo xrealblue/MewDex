@@ -11,7 +11,7 @@ export default function LiquidityInterface() {
   const { writeContract } = useWriteContract();
   
   const [tokenA, setTokenA] = useState(TOKENS.WETH.address);
-  const [tokenB, setTokenB] = useState(TOKENS.MEW.address);
+  const [tokenB, setTokenB] = useState(TOKENS.CAT.address);
   const [amountA, setAmountA] = useState('');
   const [amountB, setAmountB] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -21,6 +21,24 @@ export default function LiquidityInterface() {
     
     setIsLoading(true);
     try {
+      // Check if this is a valid token pair (WETH-CAT or MEW-CAT)
+      const validPairs = [
+        [TOKENS.WETH.address, TOKENS.CAT.address],
+        [TOKENS.CAT.address, TOKENS.WETH.address],
+        [TOKENS.MEW.address, TOKENS.CAT.address],
+        [TOKENS.CAT.address, TOKENS.MEW.address]
+      ];
+      
+      const isValidPair = validPairs.some(pair => 
+        (pair[0].toLowerCase() === tokenA.toLowerCase() && pair[1].toLowerCase() === tokenB.toLowerCase())
+      );
+      
+      if (!isValidPair) {
+        alert('Please select a valid token pair: WETH-CAT or MEW-CAT');
+        setIsLoading(false);
+        return;
+      }
+      
       // Approve both tokens
       const amountAWei = parseUnits(amountA, 18);
       const amountBWei = parseUnits(amountB, 18);
