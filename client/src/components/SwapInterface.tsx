@@ -3,26 +3,27 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther, Address } from 'viem';
-import { sepolia } from 'wagmi/chains';
+import { ArrowDownUp, Settings, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
-// Contract addresses
-const ROUTER_ADDRESS = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24';
-const FACTORY_ADDRESS = '0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6';
+// VERIFIED CONTRACT ADDRESSES - SEPOLIA TESTNET
+const ROUTER_ADDRESS = '0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3';
+const FACTORY_ADDRESS = '0xF62c03E08ada871A0bEb309762E260a7a6a880E6';
+const PAIR_ADDRESS = '0xD6632E37d6d266ef4a7f5a9A8E2e21F9D0064807';
 
 const TOKENS = {
   MEW: {
     address: '0x859f87DF3ea4DE9573A52Fa0695B72383a261213',
     symbol: 'MEW',
-    decimals: 18
+    decimals: 18,
+    icon: '🐱'
   },
   CAT: {
     address: '0x16EB0B40deb683Da77D68f86B01a3fd0A189Cb5F',
     symbol: 'CAT',
-    decimals: 18
+    decimals: 18,
+    icon: '🐈'
   },
 };
-
-const PAIR_ADDRESS = '0x8384e73328b1223cEa00C6e219ED75192919e4E0';
 
 // ABIs
 const ERC20_ABI = [
@@ -128,38 +129,55 @@ export default function DEXInterface() {
   const { address, isConnected } = useAccount();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-pink-950 py-8 px-4">
+      <div className="max-w-lg mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-5xl font-bold text-white mb-2">
+            🐱 MewSwap 🐈
+          </h1>
+          <p className="text-purple-300">Swap MEW & CAT tokens on Sepolia</p>
+        </div>
+
+        {/* Main Card */}
+        <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 backdrop-blur-xl rounded-3xl shadow-2xl border border-purple-500/20 overflow-hidden">
           {/* Tabs */}
-          <div className="flex border-b border-white/20">
+          <div className="flex border-b border-purple-500/20 bg-black/20">
             <button
               onClick={() => setActiveTab('swap')}
-              className={`flex-1 py-4 text-lg font-semibold transition-all ${
+              className={`flex-1 py-4 text-base font-bold transition-all relative ${
                 activeTab === 'swap'
-                  ? 'bg-white/20 text-white border-b-2 border-blue-400'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                  ? 'text-white'
+                  : 'text-purple-300/60 hover:text-purple-200'
               }`}
             >
-              Swap
+              {activeTab === 'swap' && (
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
+              )}
+              🔄 Swap
             </button>
             <button
               onClick={() => setActiveTab('liquidity')}
-              className={`flex-1 py-4 text-lg font-semibold transition-all ${
+              className={`flex-1 py-4 text-base font-bold transition-all relative ${
                 activeTab === 'liquidity'
-                  ? 'bg-white/20 text-white border-b-2 border-blue-400'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                  ? 'text-white'
+                  : 'text-purple-300/60 hover:text-purple-200'
               }`}
             >
-              Add Liquidity
+              {activeTab === 'liquidity' && (
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
+              )}
+              💧 Add Liquidity
             </button>
           </div>
 
           {/* Content */}
           <div className="p-6">
             {!isConnected ? (
-              <div className="text-center py-12">
-                <p className="text-white/80 text-lg">Please connect your wallet to continue</p>
+              <div className="text-center py-16">
+                <div className="text-6xl mb-4">🔌</div>
+                <p className="text-purple-200 text-lg font-semibold mb-2">Connect Your Wallet</p>
+                <p className="text-purple-300/70 text-sm">Connect to Sepolia testnet to continue</p>
               </div>
             ) : activeTab === 'swap' ? (
               <SwapInterface />
@@ -167,6 +185,12 @@ export default function DEXInterface() {
               <LiquidityInterface />
             )}
           </div>
+        </div>
+
+        {/* Footer Info */}
+        <div className="mt-6 text-center text-purple-300/50 text-xs">
+          <p>Uniswap V2 • Sepolia Testnet</p>
+          <p className="mt-1">Router: {ROUTER_ADDRESS.slice(0, 6)}...{ROUTER_ADDRESS.slice(-4)}</p>
         </div>
       </div>
     </div>
@@ -181,7 +205,7 @@ function SwapInterface() {
   const [toAmount, setToAmount] = useState('');
   const [slippage, setSlippage] = useState('0.5');
 
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { writeContract, data: hash, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   // Get balances
@@ -189,14 +213,16 @@ function SwapInterface() {
     address: TOKENS[fromToken].address as Address,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [address!],
+    args: address ? [address] : undefined,
+    query: { enabled: !!address }
   });
 
   const { data: toBalance } = useReadContract({
     address: TOKENS[toToken].address as Address,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [address!],
+    args: address ? [address] : undefined,
+    query: { enabled: !!address }
   });
 
   // Check allowance
@@ -204,17 +230,21 @@ function SwapInterface() {
     address: TOKENS[fromToken].address as Address,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: [address!, ROUTER_ADDRESS as Address],
+    args: address ? [address, ROUTER_ADDRESS as Address] : undefined,
+    query: { enabled: !!address }
   });
 
   // Get expected output amount
-  const { data: amountsOut, isError, isLoading } = useReadContract({
+  const { data: amountsOut, isError: priceError, isLoading: priceLoading } = useReadContract({
     address: ROUTER_ADDRESS as Address,
     abi: ROUTER_ABI,
     functionName: 'getAmountsOut',
-    args: fromAmount && parseFloat(fromAmount) > 0 ? [parseEther(fromAmount), [TOKENS[fromToken].address, TOKENS[toToken].address]] : undefined,
+    args: fromAmount && parseFloat(fromAmount) > 0 
+      ? [parseEther(fromAmount), [TOKENS[fromToken].address, TOKENS[toToken].address]] 
+      : undefined,
     query: {
       enabled: !!fromAmount && parseFloat(fromAmount) > 0,
+      refetchInterval: 10000,
     }
   });
 
@@ -229,6 +259,7 @@ function SwapInterface() {
 
   const handleApprove = async () => {
     try {
+      reset();
       writeContract({
         address: TOKENS[fromToken].address as Address,
         abi: ERC20_ABI,
@@ -244,6 +275,7 @@ function SwapInterface() {
     if (!fromAmount || !toAmount) return;
 
     try {
+      reset();
       const amountIn = parseEther(fromAmount);
       const amountOutMin = parseEther(toAmount) * BigInt(10000 - Math.floor(parseFloat(slippage) * 100)) / BigInt(10000);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
@@ -272,25 +304,29 @@ function SwapInterface() {
     setToAmount('');
   };
 
-  const needsApproval = allowance !== undefined && fromAmount && parseEther(fromAmount) > (allowance as bigint);
+  const needsApproval = allowance !== undefined && fromAmount && parseFloat(fromAmount) > 0 && parseEther(fromAmount) > (allowance as bigint);
 
   useEffect(() => {
     if (isSuccess) {
       setFromAmount('');
       setToAmount('');
       refetchAllowance();
+      setTimeout(() => reset(), 3000);
     }
-  }, [isSuccess, refetchAllowance]);
+  }, [isSuccess, refetchAllowance, reset]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* From Token */}
-      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+      <div className="bg-black/30 rounded-2xl p-4 border border-purple-500/20 hover:border-purple-500/40 transition-colors">
         <div className="flex justify-between mb-2">
-          <span className="text-white/60 text-sm">From</span>
-          <span className="text-white/60 text-sm">
-            Balance: {fromBalance ? parseFloat(formatEther(fromBalance as bigint)).toFixed(4) : '0'}
-          </span>
+          <span className="text-purple-300/80 text-sm font-medium">From</span>
+          <button 
+            onClick={() => fromBalance && setFromAmount(formatEther(fromBalance as bigint))}
+            className="text-purple-400/80 hover:text-purple-300 text-sm font-medium transition-colors"
+          >
+            Balance: {fromBalance ? parseFloat(formatEther(fromBalance as bigint)).toFixed(4) : '0.0000'}
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -298,41 +334,40 @@ function SwapInterface() {
             value={fromAmount}
             onChange={(e) => setFromAmount(e.target.value)}
             placeholder="0.0"
-            className="flex-1 bg-transparent text-white text-2xl outline-none"
+            className="flex-1 bg-transparent text-white text-3xl font-bold outline-none placeholder:text-white/20"
           />
-          <select
-            value={fromToken}
-            onChange={(e) => {
-              const newFrom = e.target.value as 'MEW' | 'CAT';
-              setFromToken(newFrom);
-              setToToken(newFrom === 'MEW' ? 'CAT' : 'MEW');
+          <button
+            onClick={() => {
+              const newFrom = fromToken === 'MEW' ? 'CAT' : 'MEW';
+              setFromToken(newFrom as 'MEW' | 'CAT');
+              setToToken(fromToken);
+              setFromAmount('');
+              setToAmount('');
             }}
-            className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold cursor-pointer hover:bg-white/20 transition-colors"
+            className="bg-gradient-to-br from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-4 py-2.5 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
           >
-            <option value="MEW">MEW</option>
-            <option value="CAT">CAT</option>
-          </select>
+            <span className="text-xl">{TOKENS[fromToken].icon}</span>
+            {fromToken}
+          </button>
         </div>
       </div>
 
       {/* Switch Button */}
-      <div className="flex justify-center">
+      <div className="flex justify-center -my-2 relative z-10">
         <button
           onClick={switchTokens}
-          className="bg-white/10 p-3 rounded-xl hover:bg-white/20 transition-all hover:rotate-180 duration-300"
+          className="bg-gradient-to-br from-purple-700 to-pink-700 hover:from-purple-600 hover:to-pink-600 p-3 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-110 border-4 border-indigo-950"
         >
-          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-          </svg>
+          <ArrowDownUp className="w-5 h-5 text-white" />
         </button>
       </div>
 
       {/* To Token */}
-      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+      <div className="bg-black/30 rounded-2xl p-4 border border-purple-500/20">
         <div className="flex justify-between mb-2">
-          <span className="text-white/60 text-sm">To</span>
-          <span className="text-white/60 text-sm">
-            Balance: {toBalance ? parseFloat(formatEther(toBalance as bigint)).toFixed(4) : '0'}
+          <span className="text-purple-300/80 text-sm font-medium">To</span>
+          <span className="text-purple-400/80 text-sm font-medium">
+            Balance: {toBalance ? parseFloat(formatEther(toBalance as bigint)).toFixed(4) : '0.0000'}
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -341,25 +376,34 @@ function SwapInterface() {
             value={toAmount}
             readOnly
             placeholder="0.0"
-            className="flex-1 bg-transparent text-white text-2xl outline-none"
+            className="flex-1 bg-transparent text-white text-3xl font-bold outline-none placeholder:text-white/20"
           />
-          <div className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold">
+          <div className="bg-gradient-to-br from-purple-600 to-pink-600 text-white px-4 py-2.5 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2">
+            <span className="text-xl">{TOKENS[toToken].icon}</span>
             {toToken}
           </div>
         </div>
+        {priceLoading && (
+          <div className="flex items-center gap-2 mt-2 text-purple-400 text-sm">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Fetching price...
+          </div>
+        )}
       </div>
 
-      {/* Slippage - Simple buttons only */}
-      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+      {/* Price Impact & Slippage */}
+      <div className="bg-black/30 rounded-xl p-3 border border-purple-500/20">
         <div className="flex justify-between items-center">
-          <span className="text-white/80 text-sm">Slippage Tolerance</span>
+          <span className="text-purple-300 text-sm font-medium">Slippage Tolerance</span>
           <div className="flex gap-2">
             {['0.5', '1.0', '3.0'].map((val) => (
               <button
                 key={val}
                 onClick={() => setSlippage(val)}
-                className={`px-4 py-1 rounded-lg text-sm font-medium ${
-                  slippage === val ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'
+                className={`px-3 py-1 rounded-lg text-sm font-bold transition-all ${
+                  slippage === val 
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' 
+                    : 'bg-white/10 text-purple-300 hover:bg-white/20'
                 }`}
               >
                 {val}%
@@ -369,22 +413,55 @@ function SwapInterface() {
         </div>
       </div>
 
-      {/* Swap Button */}
+      {/* Error Message */}
+      {priceError && fromAmount && parseFloat(fromAmount) > 0 && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-red-300 text-sm font-semibold">Unable to fetch price</p>
+            <p className="text-red-400/80 text-xs mt-1">Check if pool has liquidity or try a smaller amount</p>
+          </div>
+        </div>
+      )}
+
+      {/* Success Message */}
+      {isSuccess && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-green-400" />
+          <p className="text-green-300 text-sm font-semibold">Transaction successful!</p>
+        </div>
+      )}
+
+      {/* Action Button */}
       {needsApproval ? (
         <button
           onClick={handleApprove}
           disabled={isPending || isConfirming}
-          className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 disabled:from-gray-600 disabled:to-gray-700 text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {isPending || isConfirming ? 'Approving...' : `Approve ${fromToken}`}
+          {isPending || isConfirming ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Approving...
+            </>
+          ) : (
+            `Approve ${fromToken}`
+          )}
         </button>
       ) : (
         <button
           onClick={handleSwap}
-          disabled={!fromAmount || !toAmount || isPending || isConfirming}
-          className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={!fromAmount || !toAmount || isPending || isConfirming || priceError}
+          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-gray-600 disabled:to-gray-700 text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {isPending || isConfirming ? 'Swapping...' : isSuccess ? 'Swap Successful!' : 'Swap'}
+          {isPending || isConfirming ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Swapping...
+            </>
+          ) : (
+            'Swap Tokens'
+          )}
         </button>
       )}
     </div>
@@ -397,7 +474,7 @@ function LiquidityInterface() {
   const [catAmount, setCatAmount] = useState('');
   const [slippage, setSlippage] = useState('0.5');
 
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { writeContract, data: hash, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   // Get balances
@@ -405,14 +482,16 @@ function LiquidityInterface() {
     address: TOKENS.MEW.address as Address,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [address!],
+    args: address ? [address] : undefined,
+    query: { enabled: !!address }
   });
 
   const { data: catBalance } = useReadContract({
     address: TOKENS.CAT.address as Address,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [address!],
+    args: address ? [address] : undefined,
+    query: { enabled: !!address }
   });
 
   // Check allowances
@@ -420,14 +499,16 @@ function LiquidityInterface() {
     address: TOKENS.MEW.address as Address,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: [address!, ROUTER_ADDRESS as Address],
+    args: address ? [address, ROUTER_ADDRESS as Address] : undefined,
+    query: { enabled: !!address }
   });
 
   const { data: catAllowance, refetch: refetchCatAllowance } = useReadContract({
     address: TOKENS.CAT.address as Address,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: [address!, ROUTER_ADDRESS as Address],
+    args: address ? [address, ROUTER_ADDRESS as Address] : undefined,
+    query: { enabled: !!address }
   });
 
   // Get reserves
@@ -443,7 +524,8 @@ function LiquidityInterface() {
     functionName: 'token0',
   });
 
-  const handleApproveMew = async () => {
+  const handleApproveMew = () => {
+    reset();
     writeContract({
       address: TOKENS.MEW.address as Address,
       abi: ERC20_ABI,
@@ -452,7 +534,8 @@ function LiquidityInterface() {
     });
   };
 
-  const handleApproveCat = async () => {
+  const handleApproveCat = () => {
+    reset();
     writeContract({
       address: TOKENS.CAT.address as Address,
       abi: ERC20_ABI,
@@ -461,10 +544,11 @@ function LiquidityInterface() {
     });
   };
 
-  const handleAddLiquidity = async () => {
+  const handleAddLiquidity = () => {
     if (!mewAmount || !catAmount) return;
 
     try {
+      reset();
       const amountMew = parseEther(mewAmount);
       const amountCat = parseEther(catAmount);
       const slippageFactor = BigInt(10000 - Math.floor(parseFloat(slippage) * 100));
@@ -492,8 +576,8 @@ function LiquidityInterface() {
     }
   };
 
-  const needsMewApproval = mewAllowance !== undefined && mewAmount && parseEther(mewAmount) > (mewAllowance as bigint);
-  const needsCatApproval = catAllowance !== undefined && catAmount && parseEther(catAmount) > (catAllowance as bigint);
+  const needsMewApproval = mewAllowance !== undefined && mewAmount && parseFloat(mewAmount) > 0 && parseEther(mewAmount) > (mewAllowance as bigint);
+  const needsCatApproval = catAllowance !== undefined && catAmount && parseFloat(catAmount) > 0 && parseEther(catAmount) > (catAllowance as bigint);
 
   useEffect(() => {
     if (isSuccess) {
@@ -501,8 +585,9 @@ function LiquidityInterface() {
       setCatAmount('');
       refetchMewAllowance();
       refetchCatAllowance();
+      setTimeout(() => reset(), 3000);
     }
-  }, [isSuccess, refetchMewAllowance, refetchCatAllowance]);
+  }, [isSuccess, refetchMewAllowance, refetchCatAllowance, reset]);
 
   // Calculate ratio suggestion
   useEffect(() => {
@@ -512,7 +597,7 @@ function LiquidityInterface() {
       const mewReserve = isMewToken0 ? reserve0 : reserve1;
       const catReserve = isMewToken0 ? reserve1 : reserve0;
       
-      if (mewReserve > 0n) {
+      if (mewReserve > 0n ) {
         const ratio = Number(catReserve) / Number(mewReserve);
         const suggestedCat = parseFloat(mewAmount) * ratio;
         if (suggestedCat > 0 && !catAmount) {
@@ -523,38 +608,17 @@ function LiquidityInterface() {
   }, [mewAmount, reserves, token0, catAmount]);
 
   return (
-    <div className="space-y-4">
-      {reserves && Array.isArray(reserves) && (
-        <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-          <h3 className="text-white font-semibold mb-2">Pool Reserves</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-white/60">MEW:</span>
-              <span className="text-white ml-2">
-                {formatEther(token0 && (token0 as string).toLowerCase() === TOKENS.MEW.address.toLowerCase() 
-                  ? (reserves[0] as bigint) 
-                  : (reserves[1] as bigint)).slice(0, 10)}
-              </span>
-            </div>
-            <div>
-              <span className="text-white/60">CAT:</span>
-              <span className="text-white ml-2">
-                {formatEther(token0 && (token0 as string).toLowerCase() === TOKENS.MEW.address.toLowerCase() 
-                  ? (reserves[1] as bigint) 
-                  : (reserves[0] as bigint)).slice(0, 10)}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MEW Input */}
-      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+    <div className="space-y-3">
+      {/* MEW Token */}
+      <div className="bg-black/30 rounded-2xl p-4 border border-purple-500/20 hover:border-purple-500/40 transition-colors">
         <div className="flex justify-between mb-2">
-          <span className="text-white/60 text-sm">MEW Amount</span>
-          <span className="text-white/60 text-sm">
-            Balance: {mewBalance ? parseFloat(formatEther(mewBalance as bigint)).toFixed(4) : '0'}
-          </span>
+          <span className="text-purple-300/80 text-sm font-medium">MEW Amount</span>
+          <button 
+            onClick={() => mewBalance && setMewAmount(formatEther(mewBalance as bigint))}
+            className="text-purple-400/80 hover:text-purple-300 text-sm font-medium transition-colors"
+          >
+            Balance: {mewBalance ? parseFloat(formatEther(mewBalance as bigint)).toFixed(4) : '0.0000'}
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -562,21 +626,25 @@ function LiquidityInterface() {
             value={mewAmount}
             onChange={(e) => setMewAmount(e.target.value)}
             placeholder="0.0"
-            className="flex-1 bg-transparent text-white text-2xl outline-none"
+            className="flex-1 bg-transparent text-white text-3xl font-bold outline-none placeholder:text-white/20"
           />
-          <div className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold">
+          <div className="bg-gradient-to-br from-purple-600 to-pink-600 text-white px-4 py-2.5 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2">
+            <span className="text-xl">🐱</span>
             MEW
           </div>
         </div>
       </div>
 
-      {/* CAT Input */}
-      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+      {/* CAT Token */}
+      <div className="bg-black/30 rounded-2xl p-4 border border-purple-500/20 hover:border-purple-500/40 transition-colors">
         <div className="flex justify-between mb-2">
-          <span className="text-white/60 text-sm">CAT Amount</span>
-          <span className="text-white/60 text-sm">
-            Balance: {catBalance ? parseFloat(formatEther(catBalance as bigint)).toFixed(4) : '0'}
-          </span>
+          <span className="text-purple-300/80 text-sm font-medium">CAT Amount</span>
+          <button 
+            onClick={() => catBalance && setCatAmount(formatEther(catBalance as bigint))}
+            className="text-purple-400/80 hover:text-purple-300 text-sm font-medium transition-colors"
+          >
+            Balance: {catBalance ? parseFloat(formatEther(catBalance as bigint)).toFixed(4) : '0.0000'}
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -584,25 +652,28 @@ function LiquidityInterface() {
             value={catAmount}
             onChange={(e) => setCatAmount(e.target.value)}
             placeholder="0.0"
-            className="flex-1 bg-transparent text-white text-2xl outline-none"
+            className="flex-1 bg-transparent text-white text-3xl font-bold outline-none placeholder:text-white/20"
           />
-          <div className="bg-white/10 text-white px-4 py-2 rounded-xl font-semibold">
+          <div className="bg-gradient-to-br from-purple-600 to-pink-600 text-white px-4 py-2.5 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2">
+            <span className="text-xl">🐈</span>
             CAT
           </div>
         </div>
       </div>
 
-      {/* Slippage - Simple buttons only */}
-      <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+      {/* Slippage */}
+      <div className="bg-black/30 rounded-xl p-3 border border-purple-500/20">
         <div className="flex justify-between items-center">
-          <span className="text-white/80 text-sm">Slippage Tolerance</span>
+          <span className="text-purple-300 text-sm font-medium">Slippage Tolerance</span>
           <div className="flex gap-2">
             {['0.5', '1.0', '3.0'].map((val) => (
               <button
                 key={val}
                 onClick={() => setSlippage(val)}
-                className={`px-4 py-1 rounded-lg text-sm font-medium ${
-                  slippage === val ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'
+                className={`px-3 py-1 rounded-lg text-sm font-bold transition-all ${
+                  slippage === val 
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' 
+                    : 'bg-white/10 text-purple-300 hover:bg-white/20'
                 }`}
               >
                 {val}%
@@ -612,38 +683,66 @@ function LiquidityInterface() {
         </div>
       </div>
 
+      {/* Success Message */}
+      {isSuccess && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-green-400" />
+          <p className="text-green-300 text-sm font-semibold">Liquidity added successfully!</p>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="space-y-2">
         {needsMewApproval && (
           <button
             onClick={handleApproveMew}
             disabled={isPending || isConfirming}
-            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 disabled:from-gray-600 disabled:to-gray-700 text-white py-3 rounded-xl font-bold text-base shadow-xl hover:shadow-2xl transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isPending || isConfirming ? 'Approving...' : 'Approve MEW'}
+            {isPending || isConfirming ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Approving MEW...
+              </>
+            ) : (
+              'Approve MEW'
+            )}
           </button>
         )}
-        
+
         {needsCatApproval && (
           <button
             onClick={handleApproveCat}
             disabled={isPending || isConfirming}
-            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 disabled:from-gray-600 disabled:to-gray-700 text-white py-3 rounded-xl font-bold text-base shadow-xl hover:shadow-2xl transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isPending || isConfirming ? 'Approving...' : 'Approve CAT'}
+            {isPending || isConfirming ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Approving CAT...
+              </>
+            ) : (
+              'Approve CAT'
+            )}
           </button>
         )}
 
-        {!needsMewApproval && !needsCatApproval && (
-          <button
-            onClick={handleAddLiquidity}
-            disabled={!mewAmount || !catAmount || isPending || isConfirming}
-            className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isPending || isConfirming ? 'Adding Liquidity...' : isSuccess ? 'Liquidity Added!' : 'Add Liquidity'}
-          </button>
-        )}
+        <button
+          onClick={handleAddLiquidity}
+          disabled={!mewAmount || !catAmount || needsMewApproval || needsCatApproval || isPending || isConfirming}
+          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-gray-600 disabled:to-gray-700 text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {isPending || isConfirming ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Adding Liquidity...
+            </>
+          ) : (
+            'Add Liquidity'
+          )}
+        </button>
       </div>
     </div>
   );
 }
+    
