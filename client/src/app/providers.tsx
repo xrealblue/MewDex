@@ -4,6 +4,7 @@ import { WagmiProvider, createConfig, http } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConnectKitProvider, getDefaultConfig } from 'connectkit';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const config = createConfig(
   getDefaultConfig({
@@ -20,11 +21,12 @@ const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
+    <ErrorBoundary>
       <WagmiProvider config={config}>
         <QueryClientProvider client={queryClient}>
           <ConnectKitProvider>{children}</ConnectKitProvider>
         </QueryClientProvider>
       </WagmiProvider>
-    
+    </ErrorBoundary>
   );
 }

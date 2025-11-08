@@ -14,7 +14,7 @@ export default function Navbar() {
           <span className="text-xl font-bold text-purple-600">🐱 MewSwap 🐈</span>
         </Link>
       </div>
-      
+
       <div className="flex items-center gap-4">
         <Link href="/" className="text-gray-600 hover:text-purple-600">
           Swap
