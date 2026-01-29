@@ -12,7 +12,7 @@ export default function PoolPage() {
   const { writeContract } = useWriteContract();
   
   const [tokenA, setTokenA] = useState(TOKENS.WETH.address);
-  const [tokenB, setTokenB] = useState(TOKENS.USDC.address);
+  const [tokenB, setTokenB] = useState(TOKENS.MEW.address);
   const [amountA, setAmountA] = useState('');
   const [amountB, setAmountB] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -42,9 +42,9 @@ export default function PoolPage() {
         
         setReserves({
           reserveA: formatUnits(isTokenAToken0 ? reserve0 : reserve1, 
-                               isTokenAToken0 ? TOKENS.WETH.decimals : TOKENS.USDC.decimals),
+                               isTokenAToken0 ? TOKENS.WETH.decimals : TOKENS.MEW.decimals),
           reserveB: formatUnits(isTokenAToken0 ? reserve1 : reserve0,
-                               isTokenAToken0 ? TOKENS.USDC.decimals : TOKENS.WETH.decimals)
+                               isTokenAToken0 ? TOKENS.MEW.decimals : TOKENS.WETH.decimals)
         });
         
         // Get user's liquidity
@@ -96,7 +96,7 @@ export default function PoolPage() {
       });
 
       // Step 2: Approve token B
-      const amountBWei = parseUnits(amountB, TOKENS.USDC.decimals);
+      const amountBWei = parseUnits(amountB, TOKENS.MEW.decimals);
       
       await writeContract({
         address: tokenB as `0x${string}`,
@@ -113,7 +113,7 @@ export default function PoolPage() {
       const slippage = 0.05; // 5% slippage
       
       const amountAMin = parseUnits((parseFloat(amountA) * (1 - slippage)).toString(), TOKENS.WETH.decimals);
-      const amountBMin = parseUnits((parseFloat(amountB) * (1 - slippage)).toString(), TOKENS.USDC.decimals);
+      const amountBMin = parseUnits((parseFloat(amountB) * (1 - slippage)).toString(), TOKENS.MEW.decimals);
 
       await writeContract({
         address: UNISWAP_V2_MAINNET_ROUTER02_ADDRESS as `0x${string}`,
@@ -165,7 +165,7 @@ export default function PoolPage() {
           <span>{parseFloat(reserves.reserveA).toFixed(6)}</span>
         </div>
         <div className="flex justify-between mt-1">
-          <span>Reserve {TOKENS.USDC.symbol}:</span>
+          <span>Reserve {TOKENS.MEW.symbol}:</span>
           <span>{parseFloat(reserves.reserveB).toFixed(6)}</span>
         </div>
       </div>

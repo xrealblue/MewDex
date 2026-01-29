@@ -1,0 +1,7 @@
+@font-face {
+  font-family: 'Pixelon';
+  src: url('/fonts/Pixelon.ttf') format('truetype');
+}
+.pixel {
+    font-family: 'Pixelon', sans-serif;
+}

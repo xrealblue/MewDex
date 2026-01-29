@@ -1,13 +1,20 @@
 [profile.default]
-src = "src"
-out = "out"
-libs = ["lib"]
+solc_version = "0.8.20"
 optimizer = true
 optimizer_runs = 200
-viaIR = true
+libs = ["lib"]
+remappings = [
+    "@openzeppelin/=lib/openzeppelin-contracts/contracts/",
+    "@uniswap/v2-core/=lib/v2-core/contracts/",
+    "@uniswap/v2-periphery/=lib/v2-periphery/contracts/"
+]
 
-# Use the latest solc version for our contracts
-solc = "0.8.20"
+# Add compiler version overrides for old Uniswap contracts
+# (Foundry will automatically download and use them)
+[solc]
+version = "0.8.20"
 
-# Solidity version overrides for dependencies
-# Note: These are for Uniswap V2 contracts which use older Solidity versions
+# Explicit per-contract versions (important!)
+[profile.default.override]
+"lib/v2-core/**/*.sol" = { version = "0.5.16" }
+"lib/v2-periphery/**/*.sol" = { version = "0.6.6" }
