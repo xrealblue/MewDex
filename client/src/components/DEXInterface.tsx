@@ -15,7 +15,7 @@ export default function DEXInterface() {
     <div className="min-h-screen pixel w-full max-w-screen px-3 sm:px-4 py-6 sm:py-8">
       <div className="max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center  my-8">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl pixel font-bold text-black mb-2">
             🐱MewSwap🐈
           </h1>
