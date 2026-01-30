@@ -59,8 +59,8 @@ export default function DEXInterface() {
             {!isConnected ? (
               <div className="text-center py-16">
                 <div className="text-4xl sm:text-6xl mb-4">🔌</div>
-                <p className="text-purple-200 text-base sm:text-lg font-semibold mb-2">Connect Your Wallet</p>
-                <p className="text-purple-300/70 text-sm">Connect to Sepolia testnet to continue</p>
+                <p className="text-black text-base sm:text-lg font-semibold mb-2">Connect Your Wallet</p>
+                <p className="text-black text-sm">Connect to Sepolia testnet to continue</p>
               </div>
             ) : activeTab === 'swap' ? (
               <SwapInterface />
